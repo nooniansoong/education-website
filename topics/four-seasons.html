@@ -363,7 +363,7 @@ footer { padding-block: 30px 40px; color: var(--ink-soft); font-size: .9rem; bor
         <svg id="sideSvg" class="sideview" viewBox="0 0 420 330" role="img" aria-label="從側面看地球被陽光照射的情形"></svg>
       </div>
       <div data-pane="3d">
-        <p class="caption"><b>拖拉</b>可以轉動地球。越亮的地方陽光越直、越熱；越暗的地方陽光越斜。黃色圈圈是太陽<b>直射</b>的地方，紅點是台灣。</p>
+        <p class="caption">地球會自己轉（自轉），一圈就是一天。<b>拖拉</b>可以換角度看。越亮的地方陽光越直、越熱；越暗的地方陽光越斜。黃色圈圈是太陽<b>直射</b>的地方，紅點是台灣。</p>
         <canvas id="orbitGlobe" class="globe" role="img" aria-label="可以轉動的立體地球，顯示陽光照射的亮面和暗面"></canvas>
         <div class="globe-bar">
           <button class="btn" type="button" id="orbitSpin">▶ 地球自轉</button>
@@ -447,7 +447,7 @@ footer { padding-block: 30px 40px; color: var(--ink-soft); font-size: .9rem; bor
         <svg id="zoneSvg" class="sideview" viewBox="0 0 420 330" role="img" aria-label="地球的氣候帶分布圖"></svg>
       </div>
       <div data-pane="3d" hidden>
-        <p class="caption"><b>拖拉</b>可以轉動地球，<b>點一下</b>地球上的顏色可以看那一個帶的介紹。</p>
+        <p class="caption">地球會自己轉，<b>拖拉</b>可以換角度看，<b>點一下</b>地球上的顏色可以看那一個帶的介紹。</p>
         <canvas id="zoneGlobe" class="globe" role="img" aria-label="可以轉動的立體地球，用顏色標出熱帶、副熱帶、溫帶和寒帶"></canvas>
         <div class="globe-bar">
           <button class="btn" type="button" id="zoneSpin">▶ 地球自轉</button>
@@ -920,10 +920,22 @@ var LAND_RLE = "k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;7m,1,3,3,2,p,bg;5i,1,2,5,
       g.sunLon = ((g.sunLon + 180) % 360 + 360) % 360 - 180;
       last = t; render(); raf = requestAnimationFrame(spinTick);
     }
-    g.setSpin = function (on) {
+    function setSpin(on) {
+      if (on === g.spinning) return;
       g.spinning = on; cancelAnimationFrame(raf); last = 0;
       if (on) raf = requestAnimationFrame(spinTick);
-    };
+    }
+    // The earth spins on its own while it is on screen; the button only changes whether it wants to.
+    // Hidden panes and off-screen globes stop spinning to save battery.
+    var visible = false;
+    g.wantSpin = !reduceMotion;
+    g.setWantSpin = function (on) { g.wantSpin = on; setSpin(on && visible); };
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(function (entries) {
+        visible = entries[entries.length - 1].isIntersecting;
+        setSpin(g.wantSpin && visible);
+      }).observe(canvas);
+    }
     g.reset = function () { g.yaw = -0.55; g.pitch = -0.25; g.sunLon = 121; request(); };
     g.update = function (o) { for (var k in o) g[k] = o[k]; request(); };
     g.redraw = function () { W = 0; request(); };
@@ -931,23 +943,23 @@ var LAND_RLE = "k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;7m,1,3,3,2,p,bg;5i,1,2,5,
   }
 
   function wireSpin(globe, spinBtn, resetBtn) {
+    function label() { spinBtn.textContent = globe.wantSpin ? "❚❚ 暫停自轉" : "▶ 地球自轉"; }
     spinBtn.addEventListener("click", function () {
-      if (reduceMotion && !globe.spinning) { globe.update({ sunLon: globe.sunLon - 45 }); return; }
-      globe.setSpin(!globe.spinning);
-      spinBtn.textContent = globe.spinning ? "❚❚ 停止自轉" : "▶ 地球自轉";
+      globe.setWantSpin(!globe.wantSpin);
+      label();
     });
+    label();
     resetBtn.addEventListener("click", function () { globe.reset(); });
   }
 
   // 2D / 3D switch inside a panel
-  function wireViewToggle(panel, globe, spinBtn) {
+  function wireViewToggle(panel, globe) {
     var btns = panel.querySelectorAll("[data-view]");
     btns.forEach(function (b) {
       b.addEventListener("click", function () {
         btns.forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
         panel.querySelectorAll("[data-pane]").forEach(function (p) { p.hidden = p.dataset.pane !== b.dataset.view; });
         if (b.dataset.view === "3d") globe.redraw();
-        else { globe.setSpin(false); spinBtn.textContent = "▶ 地球自轉"; }
       });
     });
   }
@@ -988,7 +1000,7 @@ var LAND_RLE = "k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;7m,1,3,3,2,p,bg;5i,1,2,5,
       }
     });
     wireSpin(globe, document.getElementById("orbitSpin"), document.getElementById("orbitReset"));
-    wireViewToggle(side.closest(".panel"), globe, document.getElementById("orbitSpin"));
+    wireViewToggle(side.closest(".panel"), globe);
     var cx = 380, cy = 205, rx = 285, ry = 128;
     var defs = el("defs", {}, svg);
     var grad = el("radialGradient", { id: "sunGrad" }, defs);
@@ -1177,7 +1189,7 @@ var LAND_RLE = "k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;k0;7m,1,3,3,2,p,bg;5i,1,2,5,
     var selected = "sub", zday = 171;
     var globe = Globe(document.getElementById("zoneGlobe"), { zones: true, onPick: function (id) { select(id); } });
     wireSpin(globe, document.getElementById("zoneSpin"), document.getElementById("zoneReset"));
-    wireViewToggle(svg.closest(".panel"), globe, document.getElementById("zoneSpin"));
+    wireViewToggle(svg.closest(".panel"), globe);
     ZONES.forEach(function (z) {
       var b = document.createElement("button");
       b.type = "button"; b.className = "zone-btn"; b.dataset.zone = z.id;
